@@ -1,0 +1,199 @@
+"""
+infrastructure/repositories/supabase_client_repository.py
+───────────────────────────────────────────────────────────
+DB reads/writes for Client (debtor) entities.
+
+Table: clients
+  id                  uuid PK
+  officer_id          text NOT NULL
+  job_id              text NOT NULL
+  client_name         text
+  phone_number        text
+  national_id         text
+  product_type        text
+  total_principal     numeric DEFAULT 0
+  amount_due          numeric DEFAULT 0
+  installment_amount  numeric DEFAULT 0
+  due_date            date
+  installment_date    date
+  last_payment_date   date
+  days_overdue        int DEFAULT 0
+  priority_tier       text DEFAULT 'UNKNOWN'
+  status              text DEFAULT 'UNKNOWN'
+  raw_data            jsonb DEFAULT '{}'
+  created_at          timestamptz DEFAULT now()
+  updated_at          timestamptz DEFAULT now()
+
+Index: (officer_id, priority_tier) — speeds up the kill-list query.
+"""
+
+from __future__ import annotations
+from datetime import date, datetime
+from typing import Any
+
+import structlog
+from supabase import Client
+
+from core.domain.entities.client import Client as ClientEntity, ClientStatus, PriorityTier
+from core.domain.repositories.interfaces import IClientRepository
+
+import os
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))
+sys.path.append(parent_dir)
+
+import structlog
+
+TABLE = "clients"
+BATCH_SIZE = 500   # Supabase bulk insert sweet spot
+
+log = structlog.get_logger(__name__)
+
+class SupabaseClientRepository(IClientRepository):
+    def __init__(self, db: Client) -> None:
+        self._db = db
+
+    # ── Write ─────────────────────────────────────────────────────
+
+    async def bulk_insert(self, clients: list[ClientEntity]) -> int:
+        """
+        Inserts in batches of 500.
+        Deletes ALL existing rows for this officer first — each upload is a
+        full refresh of their client list. Scoping the delete to job_id would
+        cause duplicates to accumulate across multiple uploads.
+        Returns total inserted count.
+        """
+        if not clients:
+            return 0
+
+        officer_id = clients[0].officer_id
+        self._db.table(TABLE).delete().eq("officer_id", officer_id).execute()
+        log.debug("existing_rows_cleared", officer_id=officer_id)
+
+        rows = [_to_row(c) for c in clients]
+        total = 0
+
+        for i in range(0, len(rows), BATCH_SIZE):
+            batch = rows[i : i + BATCH_SIZE]
+            result = (
+                self._db.table(TABLE)
+                .insert(batch)
+                .execute()
+            )
+            total += len(result.data)
+            log.debug("batch_inserted", batch_num=i // BATCH_SIZE + 1, count=len(result.data))
+
+        return total
+
+    # ── Read ──────────────────────────────────────────────────────
+
+    async def get_by_job(self, job_id: str) -> list[ClientEntity]:
+        result = (
+            self._db.table(TABLE)
+            .select("*")
+            .eq("job_id", job_id)
+            .execute()
+        )
+        return [_from_row(r) for r in (result.data or [])]
+
+    async def get_prioritised_for_officer(
+        self, officer_id: str
+    ) -> dict[str, list[ClientEntity]]:
+        """
+        Returns clients grouped by priority tier, excluding settled/cleared ones.
+        Only returns tiers relevant for the kill list.
+        """
+        tiers = [
+            PriorityTier.OVERDUE.value,
+            PriorityTier.DUE_TOMORROW.value,
+            PriorityTier.DUE_THIS_WEEK.value,
+        ]
+
+        result = (
+            self._db.table(TABLE)
+            .select("*")
+            .eq("officer_id", officer_id)
+            .in_("priority_tier", tiers)
+            .neq("status", ClientStatus.SETTLED.value)
+            .order("days_overdue", desc=True)
+            .execute()
+        )
+
+        grouped: dict[str, list[ClientEntity]] = {t: [] for t in tiers}
+        for row in (result.data or []):
+            tier = row.get("priority_tier", "UNKNOWN")
+            if tier in grouped:
+                grouped[tier].append(_from_row(row))
+
+        return grouped
+
+
+# ── Serialisation helpers ─────────────────────────────────────────
+
+
+def _to_row(c: ClientEntity) -> dict[str, Any]:
+    return {
+        "id": c.id,
+        "officer_id": c.officer_id,
+        "job_id": c.job_id,
+        "client_name": c.client_name,
+        "phone_number": c.phone_number,
+        "national_id": c.national_id,
+        "product_type": c.product_type,
+        "total_principal": c.total_principal,
+        "amount_due": c.amount_due,
+        "installment_amount": c.installment_amount,
+        "due_date": c.due_date.isoformat() if c.due_date else None,
+        "installment_date": c.installment_date.isoformat() if c.installment_date else None,
+        "last_payment_date": c.last_payment_date.isoformat() if c.last_payment_date else None,
+        "days_overdue": c.days_overdue,
+        "priority_tier": c.priority_tier.value if isinstance(c.priority_tier, PriorityTier) else c.priority_tier,
+        "status": c.status.value if isinstance(c.status, ClientStatus) else c.status,
+        "raw_data": c.raw_data,
+        "created_at": c.created_at.isoformat(),
+        "updated_at": c.updated_at.isoformat(),
+    }
+
+
+def _from_row(row: dict[str, Any]) -> ClientEntity:
+    c = ClientEntity()
+    c.id = row["id"]
+    c.officer_id = row.get("officer_id", "")
+    c.job_id = row.get("job_id", "")
+    c.client_name = row.get("client_name", "")
+    c.phone_number = row.get("phone_number", "")
+    c.national_id = row.get("national_id", "")
+    c.product_type = row.get("product_type", "")
+    c.total_principal = float(row.get("total_principal") or 0)
+    c.amount_due = float(row.get("amount_due") or 0)
+    c.installment_amount = float(row.get("installment_amount") or 0)
+    c.due_date = _parse_date(row.get("due_date"))
+    c.installment_date = _parse_date(row.get("installment_date"))
+    c.last_payment_date = _parse_date(row.get("last_payment_date"))
+    c.days_overdue = row.get("days_overdue", 0)
+    c.priority_tier = PriorityTier(row.get("priority_tier", "UNKNOWN"))
+    c.status = ClientStatus(row.get("status", "UNKNOWN"))
+    c.raw_data = row.get("raw_data") or {}
+    c.created_at = _parse_dt(row.get("created_at"))
+    c.updated_at = _parse_dt(row.get("updated_at"))
+    return c
+
+
+def _parse_date(value: Any) -> date | None:
+    if not value:
+        return None
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except Exception:
+        return None
+
+
+def _parse_dt(value: Any) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return datetime.utcnow()

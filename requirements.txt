@@ -1,0 +1,38 @@
+# Web Framework
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Database & Storage (Supabase/PostgreSQL)
+supabase
+psycopg2-binary
+
+# Background Tasks & Message Broker
+celery
+redis
+
+# Identity & Realtime (Firebase)
+firebase-admin
+
+# Data Processing (The Meat Grinder)
+pandas
+openpyxl
+
+# AI & API Calls
+httpx
+pydantic-settings
+python-dotenv
+
+# Scaling & Security
+gunicorn
+python-jose[cryptography]
+passlib[bcrypt]
+
+pdfplumberp
+
+structlog
+
+chardet
+arrow
+phonenumbers
+concurrent_log_handler

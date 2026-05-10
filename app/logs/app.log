@@ -1,0 +1,127 @@
+2026-05-10 07:52:03,904 - Watchers-Backend - ERROR - [logger.py:49] - Uncaught exception
+Traceback (most recent call last):
+  File "F:\VisualStudioProjects\fuata-capital\app\main.py", line 21, in <module>
+    from api.v1.router import api_v1_router
+  File "F:\VisualStudioProjects\fuata-capital\app\api\v1\router.py", line 16, in <module>
+    from .upload import router as upload_router
+  File "F:\VisualStudioProjects\fuata-capital\app\api\v1\upload.py", line 36, in <module>
+    from infrastructure.workers.tasks import process_upload_job
+  File "F:\VisualStudioProjects\fuata-capital\app\infrastructure\workers\tasks.py", line 24, in <module>
+    from .celery_app import celery_app
+  File "F:\VisualStudioProjects\fuata-capital\app\infrastructure\workers\celery_app.py", line 10, in <module>
+    from app.infrastructure.ai_strategist import AIStrategist
+  File "F:\VisualStudioProjects\fuata-capital\app\infrastructure\ai_strategist.py", line 3, in <module>
+    from app.core.domain.entities.client import StandardClient
+ImportError: cannot import name 'StandardClient' from 'app.core.domain.entities.client' (F:\VisualStudioProjects\fuata-capital\app\core\domain\entities\client.py)
+2026-05-10 07:58:16,117 - Watchers-Backend - ERROR - [logger.py:49] - Uncaught exception
+Traceback (most recent call last):
+  File "F:\VisualStudioProjects\fuata-capital\app\main.py", line 21, in <module>
+    from api.v1.router import api_v1_router
+  File "F:\VisualStudioProjects\fuata-capital\app\api\v1\router.py", line 16, in <module>
+    from .upload import router as upload_router
+  File "F:\VisualStudioProjects\fuata-capital\app\api\v1\upload.py", line 36, in <module>
+    from infrastructure.workers.tasks import process_upload_job
+  File "F:\VisualStudioProjects\fuata-capital\app\infrastructure\workers\tasks.py", line 24, in <module>
+    from .celery_app import celery_app
+  File "F:\VisualStudioProjects\fuata-capital\app\infrastructure\workers\celery_app.py", line 11, in <module>
+    from app.infrastructure.ai_strategist import AIStrategist
+  File "F:\VisualStudioProjects\fuata-capital\app\infrastructure\ai_strategist.py", line 3, in <module>
+    from app.core.domain.entities.client import StandardClient
+ImportError: cannot import name 'StandardClient' from 'app.core.domain.entities.client' (F:\VisualStudioProjects\fuata-capital\app\core\domain\entities\client.py)
+2026-05-10 07:58:43,746 - Watchers-Backend - ERROR - [logger.py:49] - Uncaught exception
+Traceback (most recent call last):
+  File "F:\VisualStudioProjects\fuata-capital\app\main.py", line 21, in <module>
+    from api.v1.router import api_v1_router
+  File "F:\VisualStudioProjects\fuata-capital\app\api\v1\router.py", line 16, in <module>
+    from .upload import router as upload_router
+  File "F:\VisualStudioProjects\fuata-capital\app\api\v1\upload.py", line 36, in <module>
+    from infrastructure.workers.tasks import process_upload_job
+  File "F:\VisualStudioProjects\fuata-capital\app\infrastructure\workers\tasks.py", line 24, in <module>
+    from .celery_app import celery_app
+  File "F:\VisualStudioProjects\fuata-capital\app\infrastructure\workers\celery_app.py", line 11, in <module>
+    from app.infrastructure.ai_strategist import AIStrategist
+  File "F:\VisualStudioProjects\fuata-capital\app\infrastructure\ai_strategist.py", line 3, in <module>
+    from app.core.domain.entities.client import StandardClient
+ImportError: cannot import name 'StandardClient' from 'app.core.domain.entities.client' (F:\VisualStudioProjects\fuata-capital\app\core\domain\entities\client.py)
+2026-05-10 08:06:44,687 - Watchers-Backend - ERROR - [logger.py:49] - Uncaught exception
+Traceback (most recent call last):
+  File "F:\VisualStudioProjects\fuata-capital\app\main.py", line 21, in <module>
+    from api.v1.router import api_v1_router
+  File "F:\VisualStudioProjects\fuata-capital\app\api\v1\router.py", line 16, in <module>
+    from .upload import router as upload_router
+  File "F:\VisualStudioProjects\fuata-capital\app\api\v1\upload.py", line 36, in <module>
+    from infrastructure.workers.tasks import process_upload_job
+  File "F:\VisualStudioProjects\fuata-capital\app\infrastructure\workers\tasks.py", line 24, in <module>
+    from .celery_app import celery_app
+  File "F:\VisualStudioProjects\fuata-capital\app\infrastructure\workers\celery_app.py", line 6, in <module>
+    s = get_settings()
+  File "F:\VisualStudioProjects\fuata-capital\config.py", line 82, in get_settings
+    return Settings()
+  File "F:\VisualStudioProjects\fuata-capital\.venv\Lib\site-packages\pydantic_settings\main.py", line 247, in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\VisualStudioProjects\fuata-capital\.venv\Lib\site-packages\pydantic\main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 5 validation errors for Settings
+SUPABASE_URL
+  Field required [type=missing, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+SUPABASE_SERVICE_ROLE_KEY
+  Field required [type=missing, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+FIREBASE_SERVICE_ACCOUNT_JSON
+  Field required [type=missing, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+FIREBASE_DATABASE_URL
+  Field required [type=missing, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+OPENROUTER_API_KEY
+  Field required [type=missing, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+2026-05-10 08:31:03,886 - Watchers-Backend - ERROR - [logger.py:49] - Uncaught exception
+Traceback (most recent call last):
+  File "F:\VisualStudioProjects\fuata-capital\app\main.py", line 21, in <module>
+    from api.v1.router import api_v1_router
+  File "F:\VisualStudioProjects\fuata-capital\app\api\v1\router.py", line 17, in <module>
+    from .kill_list import router as kill_list_router
+  File "F:\VisualStudioProjects\fuata-capital\app\api\v1\kill_list.py", line 9, in <module>
+    from dependencies import get_killlist_repo, get_officer_uid
+ModuleNotFoundError: No module named 'dependencies'
+2026-05-10 08:33:17,448 - Watchers-Backend - ERROR - [logger.py:49] - Uncaught exception
+Traceback (most recent call last):
+  File "F:\VisualStudioProjects\fuata-capital\app\main.py", line 21, in <module>
+    from api.v1.router import api_v1_router
+  File "F:\VisualStudioProjects\fuata-capital\app\api\v1\router.py", line 17, in <module>
+    from .kill_list import router as kill_list_router
+  File "F:\VisualStudioProjects\fuata-capital\app\api\v1\kill_list.py", line 16, in <module>
+    from dependencies import get_killlist_repo, get_officer_uid
+ModuleNotFoundError: No module named 'dependencies'
+2026-05-10 08:34:06,309 - Watchers-Backend - ERROR - [logger.py:49] - Uncaught exception
+Traceback (most recent call last):
+  File "F:\VisualStudioProjects\fuata-capital\app\main.py", line 79, in <module>
+    app = create_app()
+  File "F:\VisualStudioProjects\fuata-capital\app\main.py", line 34, in create_app
+    s = get_settings()
+  File "F:\VisualStudioProjects\fuata-capital\config.py", line 82, in get_settings
+    return Settings()
+  File "F:\VisualStudioProjects\fuata-capital\.venv\Lib\site-packages\pydantic_settings\main.py", line 247, in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\VisualStudioProjects\fuata-capital\.venv\Lib\site-packages\pydantic\main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 5 validation errors for Settings
+SUPABASE_URL
+  Field required [type=missing, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+SUPABASE_SERVICE_ROLE_KEY
+  Field required [type=missing, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+FIREBASE_SERVICE_ACCOUNT_JSON
+  Field required [type=missing, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+FIREBASE_DATABASE_URL
+  Field required [type=missing, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+OPENROUTER_API_KEY
+  Field required [type=missing, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing

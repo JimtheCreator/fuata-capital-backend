@@ -1,0 +1,147 @@
+FOLDER STRUCTURE REPORT
+Generated on: F:\VisualStudioProjects\fuata-capital
+Ignored folders: .pytest_cache, .vscode, .venv, .github
+Skip contents folders: docker/influxdb/data
+
+==================================================
+FOLDER STRUCTURE: docker
+==================================================
+docker/
+└── docker_compose.yml
+
+
+==================================================
+FOLDER STRUCTURE: app
+==================================================
+app/
+├── __pycache__
+│   └── __init__.cpython-313.pyc
+├── api
+│   ├── __pycache__
+│   │   └── __init__.cpython-313.pyc
+│   ├── v1
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-313.pyc
+│   │   │   ├── dependencies.cpython-313.pyc
+│   │   │   ├── kill_list.cpython-313.pyc
+│   │   │   ├── router.cpython-313.pyc
+│   │   │   └── upload.cpython-313.pyc
+│   │   ├── __init__.py
+│   │   ├── dependencies.py
+│   │   ├── kill_list.py
+│   │   ├── router.py
+│   │   └── upload.py
+│   └── __init__.py
+├── core
+│   ├── __pycache__
+│   │   └── __init__.cpython-313.pyc
+│   ├── domain
+│   │   ├── entities
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-313.pyc
+│   │   │   │   ├── client.cpython-313.pyc
+│   │   │   │   ├── kill_list_event.cpython-313.pyc
+│   │   │   │   └── upload_job.cpython-313.pyc
+│   │   │   ├── __init__.py
+│   │   │   ├── client.py
+│   │   │   ├── kill_list_event.py
+│   │   │   └── upload_job.py
+│   │   └── repositories
+│   │       ├── __pycache__
+│   │       │   ├── __init__.cpython-313.pyc
+│   │       │   └── interfaces.cpython-313.pyc
+│   │       ├── __init__.py
+│   │       └── interfaces.py
+│   ├── schemas
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-313.pyc
+│   │   │   ├── kill_list.cpython-313.pyc
+│   │   │   └── upload.cpython-313.pyc
+│   │   ├── __init__.py
+│   │   ├── kill_list.py
+│   │   └── upload.py
+│   ├── use_cases
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-313.pyc
+│   │   │   ├── confirm_upload.cpython-313.pyc
+│   │   │   ├── generate_upload_url.cpython-313.pyc
+│   │   │   └── get_job_status.cpython-313.pyc
+│   │   ├── __init__.py
+│   │   ├── confirm_upload.py
+│   │   ├── generate_upload_url.py
+│   │   ├── get_job_status.py
+│   │   ├── kill_list.py
+│   │   └── process_list.py
+│   └── __init__.py
+├── infrastructure
+│   ├── __pycache__
+│   │   └── ai_strategist.cpython-313.pyc
+│   ├── cache
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-313.pyc
+│   │   │   └── redis_client.cpython-313.pyc
+│   │   ├── __init__.py
+│   │   └── redis_client.py
+│   ├── database
+│   │   ├── __pycache__
+│   │   │   └── __init__.cpython-313.pyc
+│   │   ├── supabase
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-313.pyc
+│   │   │   │   └── supabase_client.cpython-313.pyc
+│   │   │   ├── repo
+│   │   │   │   ├── __pycache__
+│   │   │   │   │   ├── __init__.cpython-313.pyc
+│   │   │   │   │   ├── supabase_client_repository.cpython-313.pyc
+│   │   │   │   │   ├── supabase_job_repository.cpython-313.pyc
+│   │   │   │   │   ├── supabase_killlist_repository.cpython-313.pyc
+│   │   │   │   │   └── supabase_storage_repository.cpython-313.pyc
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── supabase_client_repository.py
+│   │   │   │   ├── supabase_job_repository.py
+│   │   │   │   ├── supabase_killlist_repository.py
+│   │   │   │   └── supabase_storage_repository.py
+│   │   │   ├── __init__.py
+│   │   │   └── supabase_client.py
+│   │   └── __init__.py
+│   ├── parsers
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-313.pyc
+│   │   │   └── file_parser.cpython-313.pyc
+│   │   ├── __init__.py
+│   │   └── file_parser.py
+│   ├── services
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-313.pyc
+│   │   │   ├── ai_strategy_service.cpython-313.pyc
+│   │   │   ├── column_mapper_service.cpython-313.pyc
+│   │   │   ├── data_cleaner_service.cpython-313.pyc
+│   │   │   └── firebase_service.cpython-313.pyc
+│   │   ├── __init__.py
+│   │   ├── ai_strategy_service.py
+│   │   ├── column_mapper_service.py
+│   │   ├── data_cleaner_service.py
+│   │   └── firebase_service.py
+│   ├── workers
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-313.pyc
+│   │   │   ├── celery_app.cpython-313.pyc
+│   │   │   └── tasks.cpython-313.pyc
+│   │   ├── __init__.py
+│   │   ├── celery_app.py
+│   │   └── tasks.py
+│   └── ai_strategist.py
+├── logs
+│   ├── .__app.lock
+│   └── app.log
+├── utils
+│   ├── __pycache__
+│   │   ├── __init__.cpython-313.pyc
+│   │   └── logger.cpython-313.pyc
+│   ├── __init__.py
+│   └── logger.py
+├── __init__.py
+└── main.py
+
+
+[WARNING] Folder 'telegram_app_handler' not found or not accessible
