@@ -65,6 +65,8 @@ def _build_response(officer_uid: str, events) -> KillListResponse:
             KillListEventOut(
                 id=e.id,
                 client_id=e.client_id,
+                client_name=e.client_name,       # ADD
+                amount_due=e.amount_due,         # ADD
                 scheduled_at=e.scheduled_at,
                 priority_tier=e.priority_tier,
                 message_body=e.message_body,

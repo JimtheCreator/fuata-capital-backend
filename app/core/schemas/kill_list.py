@@ -18,6 +18,8 @@ class KillListEventOut(BaseModel):
 
     id: str
     client_id: str
+    client_name: str = ""
+    amount_due: float = 0.0
     scheduled_at: Optional[datetime] = None
     priority_tier: str                  # OVERDUE | DUE_TOMORROW | DUE_THIS_WEEK
     message_body: str

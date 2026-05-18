@@ -76,32 +76,33 @@ class SupabaseKillListRepository(IKillListRepository):
         return total
 
     # ── Read ──────────────────────────────────────────────────────
-
     async def get_by_officer(self, officer_id: str) -> list[KillListEvent]:
-        """
-        Returns today's active kill-list events for an officer.
-        'Today' is evaluated in EAT (UTC+3).
-        Excludes EXPIRED and CANCELLED events.
-        """
-        now_eat = datetime.now(tz=timezone.utc) + EAT_OFFSET
-        today_start_eat = now_eat.replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end_eat   = now_eat.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-        # Convert window back to UTC for the DB query
-        window_start = (today_start_eat - EAT_OFFSET).isoformat()
-        window_end   = (today_end_eat   - EAT_OFFSET).isoformat()
-
         result = (
             self._db.table(TABLE)
             .select("*")
             .eq("officer_id", officer_id)
-            .gte("scheduled_at", window_start)
-            .lte("scheduled_at", window_end)
             .not_.in_("status", [EventStatus.EXPIRED.value, EventStatus.CANCELLED.value])
             .order("priority_tier")
             .execute()
         )
-        return [_from_row(r) for r in (result.data or [])]
+        events = [_from_row(r) for r in (result.data or [])]
+
+        # Pull client_name + amount_due from clients table
+        client_ids = [e.client_id for e in events]
+        if client_ids:
+            clients_result = (
+                self._db.table("clients")
+                .select("id, client_name, amount_due")
+                .in_("id", client_ids)
+                .execute()
+            )
+            client_map = {c["id"]: c for c in (clients_result.data or [])}
+            for e in events:
+                c = client_map.get(e.client_id, {})
+                e.client_name = c.get("client_name", "")
+                e.amount_due = c.get("amount_due", 0.0)
+
+        return events
 
     async def get_by_job(self, job_id: str) -> list[KillListEvent]:
         result = (

@@ -76,7 +76,19 @@ async def get_officer_uid(
     try:
         decoded = firebase_auth.verify_id_token(token, check_revoked=True)
         uid: str = decoded["uid"]
-        log.debug("token_verified", uid=uid)
+        
+        db = get_supabase()
+        db.table("officers").upsert(
+            {
+                "id": uid,
+                "email": decoded.get("email", ""),
+                "display_name": decoded.get("name", ""),
+            },
+            on_conflict="id"   # do nothing if row already exists
+        ).execute()
+
+    
+        log.info("token_verified", uid=uid)
         return uid
 
     except ExpiredIdTokenError:

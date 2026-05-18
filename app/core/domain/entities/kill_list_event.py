@@ -42,6 +42,9 @@ class KillListEvent:
     officer_id: str = ""
     job_id: str = ""
     client_id: str = ""
+    
+    client_name: str = ""
+    amount_due: float = 0.0
 
     # ── Scheduling ────────────────────────────────────────────────
     # Stored in UTC.  Display layer adds +3 for EAT.
