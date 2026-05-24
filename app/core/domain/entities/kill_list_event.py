@@ -13,7 +13,7 @@ officer can review the AI's logic in the app.
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import uuid
 
@@ -63,8 +63,8 @@ class KillListEvent:
     priority_tier: str = ""  # OVERDUE | DUE_TOMORROW | DUE_THIS_WEEK
 
     # ── Audit ─────────────────────────────────────────────────────
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     sent_at: datetime | None = None
     actioned_at: datetime | None = None
     error_detail: str = ""

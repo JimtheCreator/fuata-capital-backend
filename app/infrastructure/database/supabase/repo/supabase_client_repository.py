@@ -11,11 +11,18 @@ Table: clients
   phone_number        text
   national_id         text
   product_type        text
+  asset_identifier    text
+  asset_description   text          ← car model, phone model, etc.
+  tracking_identifier text
   total_principal     numeric DEFAULT 0
-  amount_due          numeric DEFAULT 0
+  total_payable       numeric DEFAULT 0
+  amount_due          numeric DEFAULT 0   ← current instalment due
   installment_amount  numeric DEFAULT 0
-  due_date            date
-  installment_date    date
+  overdue_amount      numeric DEFAULT 0   ← accumulated past-due balance
+  penalty_amount      numeric DEFAULT 0   ← late fees charged
+  contract_start_date date
+  contract_end_date   date
+  due_date            date                ← same as instalment date
   last_payment_date   date
   days_overdue        int DEFAULT 0
   priority_tier       text DEFAULT 'UNKNOWN'
@@ -23,12 +30,10 @@ Table: clients
   raw_data            jsonb DEFAULT '{}'
   created_at          timestamptz DEFAULT now()
   updated_at          timestamptz DEFAULT now()
-
-Index: (officer_id, priority_tier) — speeds up the kill-list query.
 """
 
 from __future__ import annotations
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any
 
 import structlog
@@ -43,12 +48,11 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))
 sys.path.append(parent_dir)
 
-import structlog
-
 TABLE = "clients"
-BATCH_SIZE = 500   # Supabase bulk insert sweet spot
+BATCH_SIZE = 500
 
 log = structlog.get_logger(__name__)
+
 
 class SupabaseClientRepository(IClientRepository):
     def __init__(self, db: Client) -> None:
@@ -58,11 +62,8 @@ class SupabaseClientRepository(IClientRepository):
 
     async def bulk_insert(self, clients: list[ClientEntity]) -> int:
         """
-        Inserts in batches of 500.
-        Deletes ALL existing rows for this officer first — each upload is a
-        full refresh of their client list. Scoping the delete to job_id would
-        cause duplicates to accumulate across multiple uploads.
-        Returns total inserted count.
+        Full refresh per officer — deletes existing rows first.
+        Each upload replaces the previous list entirely.
         """
         if not clients:
             return 0
@@ -76,11 +77,7 @@ class SupabaseClientRepository(IClientRepository):
 
         for i in range(0, len(rows), BATCH_SIZE):
             batch = rows[i : i + BATCH_SIZE]
-            result = (
-                self._db.table(TABLE)
-                .insert(batch)
-                .execute()
-            )
+            result = self._db.table(TABLE).insert(batch).execute()
             total += len(result.data)
             log.debug("batch_inserted", batch_num=i // BATCH_SIZE + 1, count=len(result.data))
 
@@ -101,8 +98,8 @@ class SupabaseClientRepository(IClientRepository):
         self, officer_id: str
     ) -> dict[str, list[ClientEntity]]:
         """
-        Returns clients grouped by priority tier, excluding settled/cleared ones.
-        Only returns tiers relevant for the kill list.
+        Returns clients grouped by priority tier for kill-list building.
+        Excludes settled clients.
         """
         tiers = [
             PriorityTier.OVERDUE.value,
@@ -131,7 +128,6 @@ class SupabaseClientRepository(IClientRepository):
 
 # ── Serialisation helpers ─────────────────────────────────────────
 
-
 def _to_row(c: ClientEntity) -> dict[str, Any]:
     return {
         "id": c.id,
@@ -141,11 +137,18 @@ def _to_row(c: ClientEntity) -> dict[str, Any]:
         "phone_number": c.phone_number,
         "national_id": c.national_id,
         "product_type": c.product_type,
+        "asset_identifier": c.asset_identifier,
+        "asset_description": c.asset_description,
+        "tracking_identifier": c.tracking_identifier,
         "total_principal": c.total_principal,
+        "total_payable": c.total_payable,
         "amount_due": c.amount_due,
         "installment_amount": c.installment_amount,
+        "overdue_amount": c.overdue_amount,
+        "penalty_amount": c.penalty_amount,
+        "contract_start_date": c.contract_start_date.isoformat() if c.contract_start_date else None,
+        "contract_end_date": c.contract_end_date.isoformat() if c.contract_end_date else None,
         "due_date": c.due_date.isoformat() if c.due_date else None,
-        "installment_date": c.installment_date.isoformat() if c.installment_date else None,
         "last_payment_date": c.last_payment_date.isoformat() if c.last_payment_date else None,
         "days_overdue": c.days_overdue,
         "priority_tier": c.priority_tier.value if isinstance(c.priority_tier, PriorityTier) else c.priority_tier,
@@ -165,11 +168,18 @@ def _from_row(row: dict[str, Any]) -> ClientEntity:
     c.phone_number = row.get("phone_number", "")
     c.national_id = row.get("national_id", "")
     c.product_type = row.get("product_type", "")
+    c.asset_identifier = row.get("asset_identifier", "")
+    c.asset_description = row.get("asset_description", "")
+    c.tracking_identifier = row.get("tracking_identifier", "")
     c.total_principal = float(row.get("total_principal") or 0)
+    c.total_payable = float(row.get("total_payable") or 0)
     c.amount_due = float(row.get("amount_due") or 0)
     c.installment_amount = float(row.get("installment_amount") or 0)
+    c.overdue_amount = float(row.get("overdue_amount") or 0)
+    c.penalty_amount = float(row.get("penalty_amount") or 0)
+    c.contract_start_date = _parse_date(row.get("contract_start_date"))
+    c.contract_end_date = _parse_date(row.get("contract_end_date"))
     c.due_date = _parse_date(row.get("due_date"))
-    c.installment_date = _parse_date(row.get("installment_date"))
     c.last_payment_date = _parse_date(row.get("last_payment_date"))
     c.days_overdue = row.get("days_overdue", 0)
     c.priority_tier = PriorityTier(row.get("priority_tier", "UNKNOWN"))
@@ -196,4 +206,4 @@ def _parse_dt(value: Any) -> datetime:
         return value
     if isinstance(value, str):
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)

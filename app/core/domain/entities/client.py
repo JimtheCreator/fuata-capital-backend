@@ -1,12 +1,12 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Any
 import uuid
 
 class PriorityTier(str, Enum):
-    OVERDUE = "OVERDUE"          # Past due date
+    OVERDUE = "OVERDUE"
     DUE_TOMORROW = "DUE_TOMORROW"
     DUE_THIS_WEEK = "DUE_THIS_WEEK"
     UP_TO_DATE = "UP_TO_DATE"
@@ -20,46 +20,49 @@ class ClientStatus(str, Enum):
 
 @dataclass
 class Client:
-    """
-    Core domain entity. Schema-agnostic — the AI column mapper
-    normalises whatever the officer uploads into these fields.
-    raw_data holds the original row so nothing is ever lost.
-    """
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     officer_id: str = ""
     job_id: str = ""
 
-    # Normalised fields
+    # ── Identity ──────────────────────────────────────────────────
     client_name: str = ""
-    phone_number: str = ""          # Always stored as +2547XXXXXXXX
+    phone_number: str = ""
     national_id: str = ""
 
-    # Financial
-    product_type: str = ""          # e.g. "car_hp", "loan", "furniture_hp"
-    total_principal: float = 0.0
-    amount_due: float = 0.0         # Outstanding balance
-    installment_amount: float = 0.0
+    # ── Asset / Product ───────────────────────────────────────────
+    product_type: str = ""
+    asset_identifier: str = ""      # Plate no, loan acc no, serial no
+    asset_description: str = ""     # Human label: "TOYOTA HILUX", "iPhone 14", "Sofa Set"
+    tracking_identifier: str = ""   # Chassis no, GPS ID, IMEI
 
-    # Dates
-    due_date: date | None = None
-    installment_date: date | None = None
+    # ── Financial ─────────────────────────────────────────────────
+    total_principal: float = 0.0
+    total_payable: float = 0.0      # Principal + total interest
+    amount_due: float = 0.0         # Current installment / amount due now
+    installment_amount: float = 0.0 # Expected periodic payment
+    overdue_amount: float = 0.0     # Accumulated past-due balance (was current_arrears)
+    penalty_amount: float = 0.0     # Late fees / penalties charged separately
+
+    # ── Timeline ──────────────────────────────────────────────────
+    contract_start_date: date | None = None
+    contract_end_date: date | None = None
+    due_date: date | None = None        # Next/current payment due date
+    # NOTE: installment_date is the same as due_date — not stored separately
     last_payment_date: date | None = None
 
-    # Derived / enriched
+    # ── Derived ───────────────────────────────────────────────────
     days_overdue: int = 0
     priority_tier: PriorityTier = PriorityTier.UNKNOWN
     status: ClientStatus = ClientStatus.UNKNOWN
 
-    # Original row preserved for audit
+    # ── Audit ─────────────────────────────────────────────────────
     raw_data: dict[str, Any] = field(default_factory=dict)
-
-    # Timestamps
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def compute_priority(self, today: date | None = None) -> PriorityTier:
         """Business rule: derive priority from due_date vs today."""
-        from datetime import date as date_cls, timedelta
+        from datetime import date as date_cls
         ref = today or date_cls.today()
 
         if not self.due_date:

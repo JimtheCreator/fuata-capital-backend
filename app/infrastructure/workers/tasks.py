@@ -20,7 +20,6 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))
 sys.path.append(parent_dir)
 
-
 from .celery_app import celery_app
 from config import get_settings
 from app.core.domain.entities.upload_job import JobStatus
@@ -36,10 +35,9 @@ from ..services.data_cleaner_service import DataCleanerService
 from ..services.ai_strategy_service import AIStrategyService
 from ..cache.redis_client import get_redis_client
 
-from utils.logger import logger as log
+from app.utils.logger import logger as log
 
 logger = log
-
 
 def _broadcast(officer_id: str, job_id: str, payload: dict) -> None:
     """Publish progress to Redis channel for SSE consumers."""
@@ -159,9 +157,14 @@ def process_upload_job(self, job_id: str) -> dict:
 
         # ── Phase 4: Clean + Insert ──────────────────────────────
         step(JobStatus.INSERTING, 60, "Cleaning and storing client data")
-        clients, failed_rows = cleaner.clean_rows(
-            normalised_rows, officer_id, job_id
-        )
+        clients, failed_rows = cleaner.clean_rows(normalised_rows, officer_id, job_id)
+
+        if failed_rows:
+            log.warning("rows_failed_sample", 
+                count=len(failed_rows),
+                sample=[f["error"] for f in failed_rows[:3]]  # first 3 errors
+            )
+            
         log.info("data_cleaned", valid=len(clients), failed=len(failed_rows))
 
         inserted = asyncio.run(client_repo.bulk_insert(clients))
