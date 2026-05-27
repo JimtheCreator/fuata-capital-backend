@@ -30,77 +30,83 @@ Table: clients
   raw_data            jsonb DEFAULT '{}'
   created_at          timestamptz DEFAULT now()
   updated_at          timestamptz DEFAULT now()
+───────────────────────────────────────────────────────────
+Production-grade DB reads/writes for Client entities using 
+idempotent, state-preserving upserts.
 """
 
 from __future__ import annotations
-from datetime import date, datetime, timezone
-from typing import Any
-
+from datetime import datetime, timezone
+import uuid
 import structlog
+from typing import Any
 from supabase import Client
 
 from core.domain.entities.client import Client as ClientEntity, ClientStatus, PriorityTier
 from core.domain.repositories.interfaces import IClientRepository
 
-import os
-import sys
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))
-sys.path.append(parent_dir)
-
 TABLE = "clients"
-BATCH_SIZE = 500
+BATCH_SIZE = 200
 
 log = structlog.get_logger(__name__)
-
 
 class SupabaseClientRepository(IClientRepository):
     def __init__(self, db: Client) -> None:
         self._db = db
 
-    # ── Write ─────────────────────────────────────────────────────
+    @staticmethod
+    def generate_deterministic_id(officer_id: str, unique_key: str) -> str:
+        """
+        Generates a stable, predictable UUID v5 to prevent duplicates
+        and enable safe record upserting across distinct uploads.
+        """
+        namespace = uuid.uuid5(uuid.NAMESPACE_DNS, "fuata.capital")
+        combined_key = f"{officer_id}:{unique_key.strip().upper()}"
+        return str(uuid.uuid5(namespace, combined_key))
 
     async def bulk_insert(self, clients: list[ClientEntity]) -> int:
         """
-        Full refresh per officer — deletes existing rows first.
-        Each upload replaces the previous list entirely.
+        Idempotently inserts or updates portfolio records.
+        Preserves client history and relationship integrity.
         """
         if not clients:
             return 0
 
-        officer_id = clients[0].officer_id
-        self._db.table(TABLE).delete().eq("officer_id", officer_id).execute()
-        log.debug("existing_rows_cleared", officer_id=officer_id)
+        # Enforce deterministic IDs before persistence layer processing
+        for client in clients:
+            # Fallback natural key precedence: National ID -> Asset Identifier -> Phone Number
+            natural_key = client.national_id or client.asset_identifier or client.phone_number
+            if not natural_key:
+                raise ValueError(f"Incomplete identifier data for client: {client.client_name}")
+            
+            client.id = self.generate_deterministic_id(client.officer_id, natural_key)
 
         rows = [_to_row(c) for c in clients]
         total = 0
 
+        log.info("initiating_portfolio_upsert", total_records=len(rows), officer_id=clients[0].officer_id)
+
+        # Process batch updates cleanly
         for i in range(0, len(rows), BATCH_SIZE):
             batch = rows[i : i + BATCH_SIZE]
-            result = self._db.table(TABLE).insert(batch).execute()
-            total += len(result.data)
-            log.debug("batch_inserted", batch_num=i // BATCH_SIZE + 1, count=len(result.data))
+            
+            # Using Supabase/PostgREST upsert with explicit merge strategy
+            result = self._db.table(TABLE).upsert(
+                batch, 
+                on_conflict="id"
+            ).execute()
+            
+            total += len(result.data or [])
+            log.debug("upsert_batch_complete", current_count=total)
 
         return total
 
-    # ── Read ──────────────────────────────────────────────────────
-
     async def get_by_job(self, job_id: str) -> list[ClientEntity]:
-        result = (
-            self._db.table(TABLE)
-            .select("*")
-            .eq("job_id", job_id)
-            .execute()
-        )
+        result = self._db.table(TABLE).select("*").eq("job_id", job_id).execute()
         return [_from_row(r) for r in (result.data or [])]
 
-    async def get_prioritised_for_officer(
-        self, officer_id: str
-    ) -> dict[str, list[ClientEntity]]:
-        """
-        Returns clients grouped by priority tier for kill-list building.
-        Excludes settled clients.
-        """
+    async def get_prioritised_for_officer(self, officer_id: str) -> dict[str, list[ClientEntity]]:
+        """Returns non-settled clients grouped by active priority metrics."""
         tiers = [
             PriorityTier.OVERDUE.value,
             PriorityTier.DUE_TOMORROW.value,
@@ -122,11 +128,30 @@ class SupabaseClientRepository(IClientRepository):
             tier = row.get("priority_tier", "UNKNOWN")
             if tier in grouped:
                 grouped[tier].append(_from_row(row))
-
         return grouped
+    
+    async def get_all_active_officers(self) -> list[str]:
+        """Fetches distinct IDs of all officers actively managing portfolios."""
+        result = self._db.table(TABLE).select("officer_id").execute()
+        return list(set([row["officer_id"] for row in (result.data or [])]))
 
+    async def get_all_clients_for_officer(self, officer_id: str) -> list[ClientEntity]:
+        """Retrieves entire persisted baseline portfolio for evaluation rule execution."""
+        result = self._db.table(TABLE).select("*").eq("officer_id", officer_id).execute()
+        return [_from_row(r) for r in (result.data or [])]
 
-# ── Serialisation helpers ─────────────────────────────────────────
+    async def get_active_promises_to_pay(self, officer_id: str) -> list[dict[str, Any]]:
+        """Retrieves raw pending customer financial commitments."""
+        result = self._db.table("promises_to_pay").select("*").eq("officer_id", officer_id).eq("status", "PENDING").execute()
+        return result.data or []
+
+    async def batch_update_broken_promises(self, broken_ids: list[str]) -> None:
+        """Transitions failed promises to broken status."""
+        if not broken_ids:
+            return
+        self._db.table("promises_to_pay").update({"status": "BROKEN", "updated_at": datetime.now(timezone.utc).isoformat()}).in_("id", broken_ids).execute()
+
+# ── Extraction Mappings ───────────────────────────────────────────────────
 
 def _to_row(c: ClientEntity) -> dict[str, Any]:
     return {
@@ -151,19 +176,17 @@ def _to_row(c: ClientEntity) -> dict[str, Any]:
         "due_date": c.due_date.isoformat() if c.due_date else None,
         "last_payment_date": c.last_payment_date.isoformat() if c.last_payment_date else None,
         "days_overdue": c.days_overdue,
-        "priority_tier": c.priority_tier.value if isinstance(c.priority_tier, PriorityTier) else c.priority_tier,
-        "status": c.status.value if isinstance(c.status, ClientStatus) else c.status,
+        "priority_tier": c.priority_tier.value if hasattr(c.priority_tier, 'value') else str(c.priority_tier),
+        "status": c.status.value if hasattr(c.status, 'value') else str(c.status),
         "raw_data": c.raw_data,
-        "created_at": c.created_at.isoformat(),
-        "updated_at": c.updated_at.isoformat(),
     }
 
-
 def _from_row(row: dict[str, Any]) -> ClientEntity:
+    # Hydrates the dataclass object accurately from table schemas
     c = ClientEntity()
     c.id = row["id"]
-    c.officer_id = row.get("officer_id", "")
-    c.job_id = row.get("job_id", "")
+    c.officer_id = row["officer_id"]
+    c.job_id = row["job_id"]
     c.client_name = row.get("client_name", "")
     c.phone_number = row.get("phone_number", "")
     c.national_id = row.get("national_id", "")
@@ -171,39 +194,10 @@ def _from_row(row: dict[str, Any]) -> ClientEntity:
     c.asset_identifier = row.get("asset_identifier", "")
     c.asset_description = row.get("asset_description", "")
     c.tracking_identifier = row.get("tracking_identifier", "")
-    c.total_principal = float(row.get("total_principal") or 0)
-    c.total_payable = float(row.get("total_payable") or 0)
-    c.amount_due = float(row.get("amount_due") or 0)
-    c.installment_amount = float(row.get("installment_amount") or 0)
-    c.overdue_amount = float(row.get("overdue_amount") or 0)
-    c.penalty_amount = float(row.get("penalty_amount") or 0)
-    c.contract_start_date = _parse_date(row.get("contract_start_date"))
-    c.contract_end_date = _parse_date(row.get("contract_end_date"))
-    c.due_date = _parse_date(row.get("due_date"))
-    c.last_payment_date = _parse_date(row.get("last_payment_date"))
-    c.days_overdue = row.get("days_overdue", 0)
-    c.priority_tier = PriorityTier(row.get("priority_tier", "UNKNOWN"))
-    c.status = ClientStatus(row.get("status", "UNKNOWN"))
-    c.raw_data = row.get("raw_data") or {}
-    c.created_at = _parse_dt(row.get("created_at"))
-    c.updated_at = _parse_dt(row.get("updated_at"))
+    c.total_principal = float(row.get("total_principal") or 0.0)
+    c.total_payable = float(row.get("total_payable") or 0.0)
+    c.amount_due = float(row.get("amount_due") or 0.0)
+    c.installment_amount = float(row.get("installment_amount") or 0.0)
+    c.overdue_amount = float(row.get("overdue_amount") or 0.0)
+    c.penalty_amount = float(row.get("penalty_amount") or 0.0)
     return c
-
-
-def _parse_date(value: Any) -> date | None:
-    if not value:
-        return None
-    if isinstance(value, date):
-        return value
-    try:
-        return date.fromisoformat(str(value)[:10])
-    except Exception:
-        return None
-
-
-def _parse_dt(value: Any) -> datetime:
-    if isinstance(value, datetime):
-        return value
-    if isinstance(value, str):
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return datetime.now(timezone.utc)

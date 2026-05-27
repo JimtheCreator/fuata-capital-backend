@@ -61,21 +61,37 @@ class Client:
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def compute_priority(self, today: date | None = None) -> PriorityTier:
-        """Business rule: derive priority from due_date vs today."""
+        """Business rule: derive priority from due_date vs today and financial liability.
+
+        Key distinction:
+          - overdue_amount  → actual accumulated arrears (the real signal).
+                              Negative = credit balance. Zero = current. Positive = behind.
+          - amount_due      → periodic installment size. Always > 0 for active clients.
+                              NOT an indicator of being overdue on its own.
+
+        A client is only eligible for the kill list if overdue_amount > 0.
+        """
         from datetime import date as date_cls
         ref = today or date_cls.today()
 
+        # No actual arrears → client is current regardless of installment size.
+        # Negative overdue_amount means they have a credit balance (overpaid).
+        if self.overdue_amount <= 0:
+            self.days_overdue = 0
+            return PriorityTier.UP_TO_DATE
+
+        # Has arrears but no due date → flag as unknown, not silently overdue.
         if not self.due_date:
             return PriorityTier.UNKNOWN
 
-        delta = (ref - self.due_date).days
+        delta = (ref - self.due_date).days  # positive = days past due date
 
         if delta > 0:
             self.days_overdue = delta
             return PriorityTier.OVERDUE
         elif delta == 0 or delta == -1:
             return PriorityTier.DUE_TOMORROW
-        elif -7 <= delta < 0:
+        elif delta >= -7:
             return PriorityTier.DUE_THIS_WEEK
-        else:
-            return PriorityTier.UP_TO_DATE
+
+        return PriorityTier.UP_TO_DATE

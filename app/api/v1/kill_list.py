@@ -17,9 +17,56 @@ from .dependencies import get_killlist_repo, get_officer_uid
 from infrastructure.database.supabase.repo.supabase_killlist_repository import SupabaseKillListRepository
 from core.schemas.kill_list import KillListEventOut, KillListResponse
 from core.domain.entities.client import PriorityTier
+from datetime import datetime, timezone
+from app.infrastructure.database.supabase.supabase_client import get_supabase
+
+from pydantic import BaseModel, Field
+from app.core.domain.entities.kill_list_event import EventStatus
 
 router = APIRouter(prefix="/kill-list", tags=["Kill List"])
 
+class UpdateEventStatusRequest(BaseModel):
+    status: EventStatus = Field(..., description="Target state: ACTIONED or CANCELLED")
+    notes: str = Field(default="", description="Optional feedback or call disposition notes.")
+
+@router.put(
+    "/events/{event_id}/status",
+    summary="Mark a kill-list item as actioned (called/messaged) or skipped.",
+)
+async def update_event_status(
+    event_id: str,
+    payload: UpdateEventStatusRequest,
+    officer_uid: str = Depends(get_officer_uid),
+    killlist_repo: SupabaseKillListRepository = Depends(get_killlist_repo),
+):
+    # 1. Fetch current record to verify ownership
+    # (Assuming killlist_repo has a get_by_id method or direct db access)
+    db = get_supabase()
+    event_check = db.table("kill_list_events").select("*").eq("id", event_id).execute()
+    
+    if not event_check.data:
+        raise HTTPException(status_code=404, detail="Kill list event not found.")
+        
+    event_data = event_check.data[0]
+    if event_data["officer_id"] != officer_uid:
+        raise HTTPException(status_code=403, detail="Unauthorized access to this event context.")
+
+    # 2. Mutate execution state
+    update_data = {
+        "status": payload.status.value,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    if payload.status == EventStatus.ACTIONED:
+        update_data["actioned_at"] = datetime.now(timezone.utc).isoformat()
+
+    # If the officer left notes, we store it directly in the event audit field
+    if payload.notes:
+        update_data["error_detail"] = payload.notes # Overloading or using a custom column
+
+    db.table("kill_list_events").update(update_data).eq("id", event_id).execute()
+    
+    return {"status": "success", "event_id": event_id, "new_state": payload.status.value}
 
 @router.get(
     "/",

@@ -115,7 +115,6 @@ class SupabaseKillListRepository(IKillListRepository):
         return [_from_row(r) for r in (result.data or [])]
 
     # ── Expiry (called by Celery beat at 00:00 EAT) ───────────────
-
     async def expire_todays_events(self, officer_id: str) -> int:
         """
         Marks all SCHEDULED events from today as EXPIRED.
@@ -140,6 +139,20 @@ class SupabaseKillListRepository(IKillListRepository):
         count = len(result.data or [])
         log.info("events_expired", officer_id=officer_id, count=count)
         return count
+    
+    async def expire_active_day_events(self, target_date_str: str) -> int:
+        """
+        Gracefully sweeps and expires any un-actioned 'SCHEDULED' items 
+        from the previous cycle date to cleanly refresh the day's dashboard view.
+        """
+        result = (
+            self._db.table(TABLE)
+            .update({"status": "EXPIRED", "updated_at": datetime.now(timezone.utc).isoformat()})
+            .eq("status", "SCHEDULED")
+            .le("expires_at", target_date_str)
+            .execute()
+        )
+        return len(result.data or [])
 
 
 # ── Serialisation helpers ─────────────────────────────────────────
