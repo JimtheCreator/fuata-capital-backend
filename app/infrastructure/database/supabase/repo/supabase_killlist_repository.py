@@ -87,20 +87,25 @@ class SupabaseKillListRepository(IKillListRepository):
         )
         events = [_from_row(r) for r in (result.data or [])]
 
-        # Pull client_name + amount_due from clients table
+        # Hydrate client fields: name, amount_due, overdue_amount, due_date → total_arrears
         client_ids = [e.client_id for e in events]
         if client_ids:
             clients_result = (
                 self._db.table("clients")
-                .select("id, client_name, amount_due")
+                .select("id, client_name, amount_due, overdue_amount, due_date")
                 .in_("id", client_ids)
                 .execute()
             )
             client_map = {c["id"]: c for c in (clients_result.data or [])}
             for e in events:
                 c = client_map.get(e.client_id, {})
-                e.client_name = c.get("client_name", "")
-                e.amount_due = c.get("amount_due", 0.0)
+                e.client_name  = c.get("client_name", "")
+                e.amount_due   = float(c.get("amount_due") or 0)
+                e.total_arrears = _compute_total_arrears(
+                    overdue_amount=float(c.get("overdue_amount") or 0),
+                    amount_due=float(c.get("amount_due") or 0),
+                    due_date_str=c.get("due_date"),
+                )
 
         return events
 
@@ -129,7 +134,7 @@ class SupabaseKillListRepository(IKillListRepository):
             self._db.table(TABLE)
             .update({
                 "status": EventStatus.EXPIRED.value,
-                "updated_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             })
             .eq("officer_id", officer_id)
             .eq("status", EventStatus.SCHEDULED.value)
@@ -155,7 +160,31 @@ class SupabaseKillListRepository(IKillListRepository):
         return len(result.data or [])
 
 
-# ── Serialisation helpers ─────────────────────────────────────────
+# ── Arrears helper ───────────────────────────────────────────────────────────
+
+def _compute_total_arrears(
+    overdue_amount: float,
+    amount_due: float,
+    due_date_str: "str | None",
+) -> float:
+    """
+    Mirrors clients.py:
+      total = overdue_amount
+      + amount_due only if due_date <= today (installment is currently due or past)
+    """
+    from datetime import date as date_cls
+    total = overdue_amount
+    if due_date_str and amount_due > 0:
+        try:
+            due = date_cls.fromisoformat(due_date_str[:10])
+            if due <= date_cls.today():
+                total += amount_due
+        except (ValueError, TypeError):
+            pass
+    return total
+
+
+# ── Serialisation helpers ─────────────────────────────────────────────────────
 
 
 def _compute_expires_at(scheduled_at: datetime | None) -> str | None:
@@ -218,4 +247,4 @@ def _parse_dt(value: Any) -> datetime:
         return value
     if isinstance(value, str):
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)

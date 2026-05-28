@@ -2,9 +2,6 @@
 presentation/schemas/kill_list.py
 ───────────────────────────────────
 Pydantic response models for /api/v1/kill-list endpoints.
-
-These are the shapes the Android app receives — keep them stable.
-Any changes here are a breaking API change.
 """
 
 from __future__ import annotations
@@ -20,21 +17,17 @@ class KillListEventOut(BaseModel):
     client_id: str
     client_name: str = ""
     amount_due: float = 0.0
+    total_arrears: float = 0.0     # overdue_amount + amount_due (when due_date <= today)
     scheduled_at: Optional[datetime] = None
-    priority_tier: str                  # OVERDUE | DUE_TOMORROW | DUE_THIS_WEEK
+    priority_tier: str
     message_body: str
     ai_reasoning: str
-    status: str                         # SCHEDULED | ACTIONED | SENT | EXPIRED
+    status: str
 
     model_config = {"from_attributes": True}
 
 
 class KillListResponse(BaseModel):
-    """
-    Full kill-list response for an officer.
-    Includes a summary header + the ordered event list.
-    """
-
     officer_id: str
     total: int = Field(..., description="Total events in this kill-list")
     overdue: int = Field(0, description="Count of OVERDUE clients")

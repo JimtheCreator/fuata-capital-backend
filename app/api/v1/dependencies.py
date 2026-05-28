@@ -84,10 +84,9 @@ async def get_officer_uid(
                 "email": decoded.get("email", ""),
                 "display_name": decoded.get("name", ""),
             },
-            on_conflict="id"   # do nothing if row already exists
+            on_conflict="id"
         ).execute()
 
-    
         log.info("token_verified", uid=uid)
         return uid
 
@@ -103,6 +102,14 @@ async def get_officer_uid(
             detail="Invalid authentication token.",
         )
     except Exception as exc:
+        err_str = str(exc).lower()
+        # invalid_grant / clock skew / revoked credentials — all auth failures, not server errors
+        if any(kw in err_str for kw in ("invalid_grant", "invalid jwt", "clock", "credential")):
+            log.warning("firebase_auth_rejected", error=str(exc))
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication failed. Token may be invalid or server clock out of sync.",
+            )
         log.error("auth_error", error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -45,6 +45,7 @@ class KillListEvent:
     
     client_name: str = ""
     amount_due: float = 0.0
+    total_arrears: float = 0.0   # overdue_amount + amount_due (only when due_date <= today)
 
     # ── Scheduling ────────────────────────────────────────────────
     # Stored in UTC.  Display layer adds +3 for EAT.
